@@ -1,7 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import * as nearAPI from "near-api-js";
+import * as BN from "bn.js";
 
 import classes from "./TxGenerator.module.scss";
+import { PublicKey } from "near-api-js/lib/utils";
 
 type TxGeneratorProps = {
   connection: nearAPI.WalletConnection;
@@ -22,7 +24,6 @@ type Action = {
   id: string;
   type: ActionType;
   deposit?: string;
-  receiverId?: string;
   methodName?: string;
   args?: string;
   gas?: string;
@@ -31,9 +32,59 @@ type Action = {
 export default function TxGenerator({ connection }: TxGeneratorProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  async function onSubmitTX() {
+  async function onSubmitTX(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
     try {
-      console.log(connection);
+      const sender = connection.account();
+
+      const txObjects: nearAPI.transactions.Transaction[] = [];
+      for (const tx of transactions) {
+        const publicKey = (await sender.getAccessKeys())[0].public_key;
+
+        // DO not care, wallet should replace nonce and hash
+        const nonce = 1;
+        const block = await sender.connection.provider.block({
+          finality: "final",
+        });
+        const blockHash = nearAPI.utils.serialize.base_decode(
+          block.header.hash
+        );
+
+        const actions = tx.actions.map((action) => {
+          if (action.type === ActionType.Transfer) {
+            return nearAPI.transactions.transfer(
+              new BN(nearAPI.utils.format.parseNearAmount(action.deposit)!)
+            );
+          }
+          if (action.type === ActionType.FunctionCall) {
+            return nearAPI.transactions.functionCall(
+              action.methodName!,
+              JSON.parse(action.args!),
+              new BN(action.gas || "30").mul(new BN("1000000000000")), // Convert TGas to Gas
+              new BN(
+                nearAPI.utils.format.parseNearAmount(action.deposit || "0")!
+              )
+            );
+          }
+          throw new Error("Unsupported action");
+        });
+
+        const transaction = nearAPI.transactions.createTransaction(
+          sender.accountId,
+          PublicKey.fromString(publicKey),
+          tx.receiverId!,
+          nonce,
+          actions,
+          blockHash
+        );
+
+        txObjects.push(transaction);
+      }
+
+      connection.requestSignTransactions({
+        transactions: txObjects,
+      });
     } catch (e: any) {
       window.alert(e.message);
     }
@@ -114,7 +165,7 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
   }
 
   return (
-    <div className={classes.container}>
+    <form className={classes.container} onSubmit={onSubmitTX}>
       <h1>Transactions Builder</h1>
       {transactions.map((tx, idx) => (
         <div className={classes.transaction} key={tx.id}>
@@ -153,10 +204,7 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
                 <button onClick={() => removeAction(tx, action.id)}>X</button>
               </div>
               {action.type === ActionType.Transfer && (
-                <>
-                  {renderActionInput(tx, action, "receiverId", "Receiver ID")}
-                  {renderActionInput(tx, action, "deposit", "Amount")}
-                </>
+                <>{renderActionInput(tx, action, "deposit", "Amount")}</>
               )}
               {action.type === ActionType.FunctionCall && (
                 <>
@@ -183,19 +231,28 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
                     tx,
                     action,
                     "gas",
-                    "Gas (default to 30)",
+                    "TGas (default to 30 TGas)",
                     false
                   )}
                 </>
               )}
             </div>
           ))}
-          <button onClick={() => addAction(tx)} className={classes.addAction}>
+          <button
+            onClick={() => addAction(tx)}
+            className={classes.addAction}
+            type="button"
+          >
             +
           </button>
         </div>
       ))}
-      <button onClick={addTX}>Add TX</button>
-    </div>
+      <button onClick={addTX} type="button">
+        Add TX
+      </button>
+      <button type="submit" className={classes.submitButton}>
+        Send Transactions
+      </button>
+    </form>
   );
 }
