@@ -41,6 +41,18 @@
         color: red;
       }
     }
+
+    .key-type-selector {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .public-key-input {
+      display: grid;
+      grid-template-columns: 1fr max-content;
+      column-gap: 10px;
+    }
   }
 
   .add-action {
@@ -51,4 +63,12 @@
 .submit-button {
   display: block;
   margin-top: 10px;
+}
+
+.request-params {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+  width: 300px;
 }

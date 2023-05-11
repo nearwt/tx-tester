@@ -1,9 +1,13 @@
 import React, { useState } from "react";
 import * as nearAPI from "near-api-js";
 import * as BN from "bn.js";
+import { PublicKey } from "near-api-js/lib/utils";
+import {
+  fullAccessKey,
+  functionCallAccessKey,
+} from "near-api-js/lib/transaction";
 
 import classes from "./TxGenerator.module.scss";
-import { PublicKey } from "near-api-js/lib/utils";
 
 type TxGeneratorProps = {
   connection: nearAPI.WalletConnection;
@@ -18,19 +22,33 @@ type Transaction = {
 enum ActionType {
   Transfer = "Transfer",
   FunctionCall = "FunctionCall",
+  AddKey = "AddKey",
+  RemoveKey = "RemoveKey",
+  CreateAccount = "CreateAccount",
+  RemoveAccount = "RemoveAccount",
+  Stake = "Stake",
+  DeployContract = "DeployContract",
 }
 
 type Action = {
   id: string;
   type: ActionType;
-  deposit?: string;
-  methodName?: string;
-  args?: string;
-  gas?: string;
+  deposit: string;
+  methodName: string;
+  args: string;
+  gas: string;
+  keyType: "full" | "functional";
+  publicKey: string;
+  contractId: string;
+  methodNames: string;
+  allowance: string;
+  beneficiaryId: string;
 };
 
 export default function TxGenerator({ connection }: TxGeneratorProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [callbackURL, setCallbackUrl] = useState<string>("");
+  const [meta, setMeta] = useState<string>("");
 
   async function onSubmitTX(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -67,6 +85,50 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
               )
             );
           }
+          if (action.type === ActionType.AddKey) {
+            const publicKey = PublicKey.fromString(action.publicKey!);
+            if (action.keyType === "full") {
+              return nearAPI.transactions.addKey(publicKey, fullAccessKey());
+            } else {
+              return nearAPI.transactions.addKey(
+                publicKey,
+                functionCallAccessKey(
+                  action.contractId!,
+                  action.methodNames!.split(","),
+                  action.allowance
+                    ? new BN(
+                        nearAPI.utils.format.parseNearAmount(action.allowance)!
+                      )
+                    : undefined
+                )
+              );
+            }
+          }
+
+          if (action.type === ActionType.RemoveKey) {
+            const publicKey = PublicKey.fromString(action.publicKey!);
+            return nearAPI.transactions.deleteKey(publicKey);
+          }
+
+          if (action.type === ActionType.CreateAccount) {
+            return nearAPI.transactions.createAccount();
+          }
+
+          if (action.type === ActionType.RemoveAccount) {
+            return nearAPI.transactions.deleteAccount(action.beneficiaryId);
+          }
+
+          if (action.type === ActionType.Stake) {
+            return nearAPI.transactions.stake(
+              new BN(nearAPI.utils.format.parseNearAmount(action.deposit)!),
+              PublicKey.fromString(action.publicKey!)
+            );
+          }
+
+          // if (action.type === ActionType.DeployContract) {
+          //   return nearAPI.transactions.deployContract(action.code);
+          // }
+
           throw new Error("Unsupported action");
         });
 
@@ -84,6 +146,8 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
 
       connection.requestSignTransactions({
         transactions: txObjects,
+        callbackUrl: callbackURL || undefined,
+        meta: meta || undefined,
       });
     } catch (e: any) {
       window.alert(e.message);
@@ -115,7 +179,20 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
       ...tx,
       actions: [
         ...tx.actions,
-        { type: ActionType.Transfer, id: Date.now().toString() },
+        {
+          type: ActionType.Transfer,
+          id: Date.now().toString(),
+          keyType: "functional",
+          allowance: "",
+          args: "",
+          contractId: "",
+          deposit: "",
+          gas: "",
+          methodName: "",
+          methodNames: "",
+          publicKey: "",
+          beneficiaryId: "",
+        },
       ],
     });
   }
@@ -167,6 +244,20 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
   return (
     <form className={classes.container} onSubmit={onSubmitTX}>
       <h1>Transactions Builder</h1>
+      <div className={classes.requestParams}>
+        <input
+          type="text"
+          value={callbackURL}
+          placeholder="Callback URL (optional)"
+          onChange={(e) => setCallbackUrl(e.target.value)}
+        />
+        <input
+          type="text"
+          value={meta}
+          placeholder="Meta (optional)"
+          onChange={(e) => setMeta(e.target.value)}
+        />
+      </div>
       {transactions.map((tx, idx) => (
         <div className={classes.transaction} key={tx.id}>
           <div className={classes.txHeader}>
@@ -206,6 +297,30 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
               {action.type === ActionType.Transfer && (
                 <>{renderActionInput(tx, action, "deposit", "Amount")}</>
               )}
+              {action.type === ActionType.RemoveKey && (
+                <>{renderActionInput(tx, action, "publicKey", "Public Key")}</>
+              )}
+              {action.type === ActionType.RemoveAccount && (
+                <>
+                  {renderActionInput(
+                    tx,
+                    action,
+                    "beneficiaryId",
+                    "Beneficiary Id"
+                  )}
+                </>
+              )}
+              {action.type === ActionType.Stake && (
+                <>
+                  {renderActionInput(tx, action, "deposit", "Stake (in NEAR)")}
+                  {renderActionInput(
+                    tx,
+                    action,
+                    "publicKey",
+                    "Validator Public Key"
+                  )}
+                </>
+              )}
               {action.type === ActionType.FunctionCall && (
                 <>
                   {renderActionInput(tx, action, "methodName", "Method Name")}
@@ -233,6 +348,87 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
                     "gas",
                     "TGas (default to 30 TGas)",
                     false
+                  )}
+                </>
+              )}
+              {action.type === ActionType.AddKey && (
+                <>
+                  <div className={classes.keyTypeSelector}>
+                    <legend>Key Type:</legend>
+                    <div>
+                      <input
+                        type="radio"
+                        name="keyType"
+                        value="functional"
+                        id="functional-key-type-radio"
+                        onChange={() =>
+                          updateAction(tx, {
+                            ...action,
+                            keyType: "functional",
+                          })
+                        }
+                        checked={action.keyType === "functional"}
+                      />
+                      <label htmlFor="functional-key-type-radio">
+                        Functional
+                      </label>
+                    </div>
+                    <div>
+                      <input
+                        type="radio"
+                        name="keyType"
+                        value="full"
+                        id="full-type-radio"
+                        onChange={() =>
+                          updateAction(tx, {
+                            ...action,
+                            keyType: "full",
+                          })
+                        }
+                        checked={action.keyType === "full"}
+                      />
+                      <label htmlFor="full-key-type-radio">Full</label>
+                    </div>
+                  </div>
+                  <div className={classes.publicKeyInput}>
+                    {renderActionInput(tx, action, "publicKey", "Public Key")}
+                    <button
+                      onClick={() =>
+                        updateAction(tx, {
+                          ...action,
+                          publicKey: nearAPI.KeyPair.fromRandom("ed25519")
+                            .getPublicKey()
+                            .toString(),
+                        })
+                      }
+                      type="button"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  {action.keyType === "functional" && (
+                    <>
+                      {renderActionInput(
+                        tx,
+                        action,
+                        "contractId",
+                        "Contract Id"
+                      )}
+                      {renderActionInput(
+                        tx,
+                        action,
+                        "methodNames",
+                        "Method Names (Optional)",
+                        false
+                      )}
+                      {renderActionInput(
+                        tx,
+                        action,
+                        "allowance",
+                        "Allowance (Optional)",
+                        false
+                      )}
+                    </>
                   )}
                 </>
               )}
