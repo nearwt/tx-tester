@@ -1,0 +1,23 @@
+.sign-in {
+  margin-top: 10px;
+  border-top: 1px solid black;
+  padding-top: 10px;
+}
+
+.type-selector {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+
+  legend {
+    margin-right: 10px;
+  }
+}
+
+.sign-in-inputs {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  margin-bottom: 10px;
+  gap: 10px;
+}
