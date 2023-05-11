@@ -1,0 +1,49 @@
+.container {
+  margin-top: 10px;
+  border-top: 1px solid black;
+  padding-top: 10px;
+}
+
+.transaction {
+  display: flex;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin: 10px 0;
+  padding: 10px;
+  flex-direction: column;
+  gap: 10px;
+  width: 500px;
+
+  .tx-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    button {
+      color: red;
+    }
+  }
+
+  .action {
+    background-color: #eee;
+    padding: 10px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .action-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      button {
+        color: red;
+      }
+    }
+  }
+
+  .add-action {
+    width: 30px;
+  }
+}

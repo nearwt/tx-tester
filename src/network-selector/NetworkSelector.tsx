@@ -39,8 +39,6 @@ export default function NetworkSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [network, wallet]);
 
-  console.log(classes);
-
   return (
     <>
       <div className={classes.walletSelector}>
