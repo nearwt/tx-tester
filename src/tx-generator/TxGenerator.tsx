@@ -263,222 +263,278 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
     );
   }
 
+  function exportConfig() {
+    const exportObj = {
+      transactions: transactions,
+      meta: meta,
+      callbackURL: callbackURL,
+    };
+    const content = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([content], { type: "text/json" });
+    const url = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = url;
+    downloadLink.download = "txconfig.json";
+
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+  }
+
+  function onImport(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const configStr = e.target!.result as string;
+      const config = JSON.parse(configStr);
+      setMeta(config.meta);
+      setCallbackUrl(config.callbackURL);
+      setTransactions(config.transactions);
+    };
+    reader.readAsText(file);
+  }
+
   return (
-    <form className={classes.container} onSubmit={onSubmitTX}>
-      <h1>Transactions Builder</h1>
-      <div className={classes.requestParams}>
-        <input
-          type="text"
-          value={callbackURL}
-          placeholder="Callback URL (optional)"
-          onChange={(e) => setCallbackUrl(e.target.value)}
-        />
-        <input
-          type="text"
-          value={meta}
-          placeholder="Meta (optional)"
-          onChange={(e) => setMeta(e.target.value)}
-        />
-      </div>
-      {transactions.map((tx, idx) => (
-        <div className={classes.transaction} key={tx.id}>
-          <div className={classes.txHeader}>
-            <h2>Transaction {idx + 1}</h2>
-            <button onClick={() => removeTX(tx.id)}>X</button>
-          </div>
+    <>
+      <form className={classes.container} onSubmit={onSubmitTX}>
+        <h1>Transactions Builder</h1>
+        <div className={classes.requestParams}>
           <input
             type="text"
-            value={tx.receiverId}
-            placeholder="Receiver ID"
-            required
-            onChange={(e) => updateTX({ ...tx, receiverId: e.target.value })}
+            value={callbackURL}
+            placeholder="Callback URL (optional)"
+            onChange={(e) => setCallbackUrl(e.target.value)}
           />
-          <h3>Actions:</h3>
-          {tx.actions.map((action) => (
-            <div className={classes.action} key={action.id}>
-              <div className={classes.actionHeader}>
-                <select
-                  onChange={(e) =>
-                    updateAction(tx, {
-                      ...action,
-                      type: e.target.value as ActionType,
-                    })
-                  }
-                  value={action.type}
-                >
-                  {Object.keys(ActionType).map((option) => {
-                    return (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    );
-                  })}
-                </select>
-                <button onClick={() => removeAction(tx, action.id)}>X</button>
-              </div>
-              {action.type === ActionType.Transfer && (
-                <>{renderActionInput(tx, action, "deposit", "Amount")}</>
-              )}
-              {action.type === ActionType.RemoveKey && (
-                <>{renderActionInput(tx, action, "publicKey", "Public Key")}</>
-              )}
-              {action.type === ActionType.DeployContract && (
-                <input
-                  type="file"
-                  accept=".wasm"
-                  required
-                  onChange={(e) => onCodeFileSelected(tx, action, e)}
-                />
-              )}
-              {action.type === ActionType.RemoveAccount && (
-                <>
-                  {renderActionInput(
-                    tx,
-                    action,
-                    "beneficiaryId",
-                    "Beneficiary Id"
-                  )}
-                </>
-              )}
-              {action.type === ActionType.Stake && (
-                <>
-                  {renderActionInput(tx, action, "deposit", "Stake (in NEAR)")}
-                  {renderActionInput(
-                    tx,
-                    action,
-                    "publicKey",
-                    "Validator Public Key"
-                  )}
-                </>
-              )}
-              {action.type === ActionType.FunctionCall && (
-                <>
-                  {renderActionInput(tx, action, "methodName", "Method Name")}
-                  <textarea
-                    value={action.args}
-                    placeholder="Method Args (JSON)"
-                    required
+          <input
+            type="text"
+            value={meta}
+            placeholder="Meta (optional)"
+            onChange={(e) => setMeta(e.target.value)}
+          />
+        </div>
+        {transactions.map((tx, idx) => (
+          <div className={classes.transaction} key={tx.id}>
+            <div className={classes.txHeader}>
+              <h2>Transaction {idx + 1}</h2>
+              <button onClick={() => removeTX(tx.id)}>X</button>
+            </div>
+            <input
+              type="text"
+              value={tx.receiverId}
+              placeholder="Receiver ID"
+              required
+              onChange={(e) => updateTX({ ...tx, receiverId: e.target.value })}
+            />
+            <h3>Actions:</h3>
+            {tx.actions.map((action) => (
+              <div className={classes.action} key={action.id}>
+                <div className={classes.actionHeader}>
+                  <select
                     onChange={(e) =>
                       updateAction(tx, {
                         ...action,
-                        args: e.target.value,
+                        type: e.target.value as ActionType,
                       })
                     }
-                  />
-                  {renderActionInput(
-                    tx,
-                    action,
-                    "deposit",
-                    "Deposit (optional)",
-                    false
-                  )}
-                  {renderActionInput(
-                    tx,
-                    action,
-                    "gas",
-                    "TGas (default to 30 TGas)",
-                    false
-                  )}
-                </>
-              )}
-              {action.type === ActionType.AddKey && (
-                <>
-                  <div className={classes.keyTypeSelector}>
-                    <legend>Key Type:</legend>
-                    <div>
-                      <input
-                        type="radio"
-                        name="keyType"
-                        value="functional"
-                        id="functional-key-type-radio"
-                        onChange={() =>
-                          updateAction(tx, {
-                            ...action,
-                            keyType: "functional",
-                          })
-                        }
-                        checked={action.keyType === "functional"}
-                      />
-                      <label htmlFor="functional-key-type-radio">
-                        Functional
-                      </label>
-                    </div>
-                    <div>
-                      <input
-                        type="radio"
-                        name="keyType"
-                        value="full"
-                        id="full-type-radio"
-                        onChange={() =>
-                          updateAction(tx, {
-                            ...action,
-                            keyType: "full",
-                          })
-                        }
-                        checked={action.keyType === "full"}
-                      />
-                      <label htmlFor="full-key-type-radio">Full</label>
-                    </div>
-                  </div>
-                  <div className={classes.publicKeyInput}>
+                    value={action.type}
+                  >
+                    {Object.keys(ActionType).map((option) => {
+                      return (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button onClick={() => removeAction(tx, action.id)}>X</button>
+                </div>
+                {action.type === ActionType.Transfer && (
+                  <>{renderActionInput(tx, action, "deposit", "Amount")}</>
+                )}
+                {action.type === ActionType.RemoveKey && (
+                  <>
                     {renderActionInput(tx, action, "publicKey", "Public Key")}
-                    <button
-                      onClick={() =>
+                  </>
+                )}
+                {action.type === ActionType.DeployContract && (
+                  <input
+                    type="file"
+                    accept=".wasm"
+                    required
+                    onChange={(e) => onCodeFileSelected(tx, action, e)}
+                  />
+                )}
+                {action.type === ActionType.RemoveAccount && (
+                  <>
+                    {renderActionInput(
+                      tx,
+                      action,
+                      "beneficiaryId",
+                      "Beneficiary Id"
+                    )}
+                  </>
+                )}
+                {action.type === ActionType.Stake && (
+                  <>
+                    {renderActionInput(
+                      tx,
+                      action,
+                      "deposit",
+                      "Stake (in NEAR)"
+                    )}
+                    {renderActionInput(
+                      tx,
+                      action,
+                      "publicKey",
+                      "Validator Public Key"
+                    )}
+                  </>
+                )}
+                {action.type === ActionType.FunctionCall && (
+                  <>
+                    {renderActionInput(tx, action, "methodName", "Method Name")}
+                    <textarea
+                      value={action.args}
+                      placeholder="Method Args (JSON)"
+                      required
+                      onChange={(e) =>
                         updateAction(tx, {
                           ...action,
-                          publicKey: nearAPI.KeyPair.fromRandom("ed25519")
-                            .getPublicKey()
-                            .toString(),
+                          args: e.target.value,
                         })
                       }
-                      type="button"
-                    >
-                      Generate
-                    </button>
-                  </div>
-                  {action.keyType === "functional" && (
-                    <>
-                      {renderActionInput(
-                        tx,
-                        action,
-                        "contractId",
-                        "Contract Id"
-                      )}
-                      {renderActionInput(
-                        tx,
-                        action,
-                        "methodNames",
-                        "Method Names (Optional)",
-                        false
-                      )}
-                      {renderActionInput(
-                        tx,
-                        action,
-                        "allowance",
-                        "Allowance (Optional)",
-                        false
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
-          <button
-            onClick={() => addAction(tx)}
-            className={classes.addAction}
-            type="button"
-          >
-            +
-          </button>
+                    />
+                    {renderActionInput(
+                      tx,
+                      action,
+                      "deposit",
+                      "Deposit (optional)",
+                      false
+                    )}
+                    {renderActionInput(
+                      tx,
+                      action,
+                      "gas",
+                      "TGas (default to 30 TGas)",
+                      false
+                    )}
+                  </>
+                )}
+                {action.type === ActionType.AddKey && (
+                  <>
+                    <div className={classes.keyTypeSelector}>
+                      <legend>Key Type:</legend>
+                      <div>
+                        <input
+                          type="radio"
+                          name="keyType"
+                          value="functional"
+                          id="functional-key-type-radio"
+                          onChange={() =>
+                            updateAction(tx, {
+                              ...action,
+                              keyType: "functional",
+                            })
+                          }
+                          checked={action.keyType === "functional"}
+                        />
+                        <label htmlFor="functional-key-type-radio">
+                          Functional
+                        </label>
+                      </div>
+                      <div>
+                        <input
+                          type="radio"
+                          name="keyType"
+                          value="full"
+                          id="full-type-radio"
+                          onChange={() =>
+                            updateAction(tx, {
+                              ...action,
+                              keyType: "full",
+                            })
+                          }
+                          checked={action.keyType === "full"}
+                        />
+                        <label htmlFor="full-key-type-radio">Full</label>
+                      </div>
+                    </div>
+                    <div className={classes.publicKeyInput}>
+                      {renderActionInput(tx, action, "publicKey", "Public Key")}
+                      <button
+                        onClick={() =>
+                          updateAction(tx, {
+                            ...action,
+                            publicKey: nearAPI.KeyPair.fromRandom("ed25519")
+                              .getPublicKey()
+                              .toString(),
+                          })
+                        }
+                        type="button"
+                      >
+                        Generate
+                      </button>
+                    </div>
+                    {action.keyType === "functional" && (
+                      <>
+                        {renderActionInput(
+                          tx,
+                          action,
+                          "contractId",
+                          "Contract Id"
+                        )}
+                        {renderActionInput(
+                          tx,
+                          action,
+                          "methodNames",
+                          "Method Names (Optional)",
+                          false
+                        )}
+                        {renderActionInput(
+                          tx,
+                          action,
+                          "allowance",
+                          "Allowance (Optional)",
+                          false
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => addAction(tx)}
+              className={classes.addAction}
+              type="button"
+            >
+              +
+            </button>
+          </div>
+        ))}
+        <button onClick={addTX} type="button">
+          Add TX
+        </button>
+        <button type="submit" className={classes.submitButton}>
+          Send Transactions
+        </button>
+      </form>
+      <div className={classes.importExportControls}>
+        <button type="button" onClick={exportConfig}>
+          Export
+        </button>
+        <div>
+          <label>Import:&nbsp;</label>
+          <input type="file" accept=".json" onChange={(e) => onImport(e)} />
         </div>
-      ))}
-      <button onClick={addTX} type="button">
-        Add TX
-      </button>
-      <button type="submit" className={classes.submitButton}>
-        Send Transactions
-      </button>
-    </form>
+      </div>
+    </>
   );
 }
