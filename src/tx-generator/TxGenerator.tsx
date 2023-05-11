@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { ChangeEvent, useState } from "react";
 import * as nearAPI from "near-api-js";
 import * as BN from "bn.js";
 import { PublicKey } from "near-api-js/lib/utils";
@@ -43,6 +43,7 @@ type Action = {
   methodNames: string;
   allowance: string;
   beneficiaryId: string;
+  code: string;
 };
 
 export default function TxGenerator({ connection }: TxGeneratorProps) {
@@ -125,9 +126,11 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
             );
           }
 
-          // if (action.type === ActionType.DeployContract) {
-          //   return nearAPI.transactions.deployContract(action.code);
-          // }
+          if (action.type === ActionType.DeployContract) {
+            const enc = new TextEncoder();
+            const binaryCode = enc.encode(action.code);
+            return nearAPI.transactions.deployContract(binaryCode);
+          }
 
           throw new Error("Unsupported action");
         });
@@ -192,6 +195,7 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
           methodNames: "",
           publicKey: "",
           beneficiaryId: "",
+          code: "",
         },
       ],
     });
@@ -216,6 +220,24 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
       );
       setTransactions(newTXs);
     }
+  }
+
+  function onCodeFileSelected(
+    tx: Transaction,
+    action: Action,
+    e: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const code = e.target!.result as string;
+      updateAction(tx, { ...action, code: code });
+    };
+    reader.readAsText(file);
   }
 
   function renderActionInput(
@@ -299,6 +321,14 @@ export default function TxGenerator({ connection }: TxGeneratorProps) {
               )}
               {action.type === ActionType.RemoveKey && (
                 <>{renderActionInput(tx, action, "publicKey", "Public Key")}</>
+              )}
+              {action.type === ActionType.DeployContract && (
+                <input
+                  type="file"
+                  accept=".wasm"
+                  required
+                  onChange={(e) => onCodeFileSelected(tx, action, e)}
+                />
               )}
               {action.type === ActionType.RemoveAccount && (
                 <>
