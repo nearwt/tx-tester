@@ -17,9 +17,9 @@ export default function NetworkSelector({
     async function initConnection() {
       let walletUrl = `https://wallet.${network}.near.org`;
       if (wallet === "dev") {
-        walletUrl = `https://dev.nearwt.click/${network}`;
+        walletUrl = `https://dev.nearwt.click/${network}/`;
       } else if (wallet === "local") {
-        walletUrl = `http://localhost:5000/${network}`;
+        walletUrl = `http://localhost:5000/${network}/`;
       }
 
       const near = await nearAPI.connect({
