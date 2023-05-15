@@ -1,6 +1,6 @@
 import React, { ChangeEvent, useState } from "react";
 import * as nearAPI from "near-api-js";
-import * as BN from "bn.js";
+import BN from "bn.js";
 import { PublicKey } from "near-api-js/lib/utils";
 import {
   fullAccessKey,
